@@ -1,6 +1,10 @@
 import numpy as np
 import time
 import cv2 as cv
+import mediapipe as mp
+
+mp_drawing = mp.solutions.drawing_utils
+mp_hands = mp.solutions.hands
 
 VITIS_DETECTED = True
 try:
@@ -59,10 +63,9 @@ def send_message():
 def display_image(image, gesture, t) -> bool:
     # input is rgb
     im = cv.cvtColor(image, cv.COLOR_RGB2BGR)
-    #im = image.copy()
+    # im = image.copy()
 
-
-    if t > 0:
+    if t > 0:  # avoid a crash from a bad time
         cv.putText(im, f"FPS: {1 / t:.2f}", (5, 15), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1)
     cv.putText(im, f"Gesture: ", (5, 30), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1)
 
@@ -78,13 +81,43 @@ def main():
 
     model = load_model()
     alive = True
+    hands = mp_hands.Hands(min_detection_confidence=.5,
+                           min_tracking_confidence=.5,
+                           max_num_hands=1)
+
     while cam.isOpened() and alive:
         start_time = time.time()
         image = get_frame(cam)
 
+        im_height, im_width, _ = image.shape
+
         # inference (might) run faster if image is read only
         image.flags.writeable = False
+        results = hands.process(image)
+
+        # draw hands on image
+
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(
+                    image,
+                    hand_landmarks,
+                    mp_hands.HAND_CONNECTIONS)
+
+        if results.multi_hand_landmarks:
+            points = results.multi_hand_landmarks[0].landmark
+            cnt = [[pt.x * im_width, pt.y * im_height] for pt in points]
+            cnt = np.array(cnt, int)
+            x, y, w, h = cv.boundingRect(cnt)
+            x1 = int(max(0, x - w / 10))
+            y1 = int(max(0, y - h / 10))
+            x2 = int(min(im_width, x + w + w / 10))
+            y2 = int(min(im_height, y + h + h / 10))
+
+            cv.rectangle(image, (x1, y1), (x2, y2), (255, 0, 255), 2)
+
         outputTensor = run_inference(model, image)
+
         gesture = process_output(outputTensor)
 
         # Draw the hand annotations on the image.

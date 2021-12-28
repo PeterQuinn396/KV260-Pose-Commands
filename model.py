@@ -1,6 +1,5 @@
 
 
-
 class GestureClassifyModel():
     pass
 
