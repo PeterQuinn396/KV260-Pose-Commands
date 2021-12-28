@@ -1,0 +1,4 @@
+dataset/*
+.idea
+
+!dataset/readme.md
