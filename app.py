@@ -43,6 +43,41 @@ def get_frame(cam):
     return image
 
 
+def crop_hand(image, hands):
+    im_height, im_width, _ = image.shape
+
+    # inference (might) run faster if image is read only
+    image.flags.writeable = False
+    results = hands.process(image)
+
+    # Draw the hand annotations on the image.
+    image.flags.writeable = True
+
+    if results.multi_hand_landmarks:
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(
+                image,
+                hand_landmarks,
+                mp_hands.HAND_CONNECTIONS)
+
+    cropped_im = None
+    if results.multi_hand_landmarks:
+        points = results.multi_hand_landmarks[0].landmark
+        cnt = [[pt.x * im_width, pt.y * im_height] for pt in points]
+        cnt = np.array(cnt, int)
+        x, y, w, h = cv.boundingRect(cnt)
+        x1 = int(max(0, x - w / 10))
+        y1 = int(max(0, y - h / 10))
+        x2 = int(min(im_width, x + w + w / 10))
+        y2 = int(min(im_height, y + h + h / 10))
+
+        cropped_im = image[x1:x2, y1:y2]  # slice bounding box of hand
+        # draw the rectange on the image in place
+        cv.rectangle(image, (x1, y1), (x2, y2), (255, 0, 255), 2)
+
+    return image, cropped_im
+
+
 def load_model():
     pass
 
@@ -89,39 +124,11 @@ def main():
         start_time = time.time()
         image = get_frame(cam)
 
-        im_height, im_width, _ = image.shape
+        image, im_cropped = crop_hand(image, hands)
 
-        # inference (might) run faster if image is read only
-        image.flags.writeable = False
-        results = hands.process(image)
-
-        # draw hands on image
-
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                mp_drawing.draw_landmarks(
-                    image,
-                    hand_landmarks,
-                    mp_hands.HAND_CONNECTIONS)
-
-        if results.multi_hand_landmarks:
-            points = results.multi_hand_landmarks[0].landmark
-            cnt = [[pt.x * im_width, pt.y * im_height] for pt in points]
-            cnt = np.array(cnt, int)
-            x, y, w, h = cv.boundingRect(cnt)
-            x1 = int(max(0, x - w / 10))
-            y1 = int(max(0, y - h / 10))
-            x2 = int(min(im_width, x + w + w / 10))
-            y2 = int(min(im_height, y + h + h / 10))
-
-            cv.rectangle(image, (x1, y1), (x2, y2), (255, 0, 255), 2)
-
-        outputTensor = run_inference(model, image)
+        outputTensor = run_inference(model, im_cropped)
 
         gesture = process_output(outputTensor)
-
-        # Draw the hand annotations on the image.
-        image.flags.writeable = True
 
         end_time = time.time()
         dt = end_time - start_time
