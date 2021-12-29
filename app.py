@@ -2,9 +2,14 @@ import numpy as np
 import time
 import cv2 as cv
 import mediapipe as mp
+import torch
 
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
+
+# model specifics
+from .model.model import GestureClassifyModel
+from .model.asl_dataset import preprocess, CATEGORIES
 
 VITIS_DETECTED = True
 try:
@@ -14,6 +19,8 @@ except ModuleNotFoundError:
     print("No Vitis python packages found")
     print("Using CPU mode")
     VITIS_DETECTED = False
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # enable gpu processing
 
 
 def open_video():
@@ -79,15 +86,17 @@ def crop_hand(image, hands):
 
 
 def load_model():
-    pass
+    model = GestureClassifyModel("model/asl_resnext.pth")
+    return model
 
 
 def run_inference(model, image):
-    pass
+    input = preprocess(image)
+    return model.forward(input)
 
 
 def process_output(outputTensor):
-    gesture = ""
+    gesture = CATEGORIES[torch.argmax(outputTensor)]
     return gesture
 
 
@@ -102,7 +111,7 @@ def display_image(image, gesture, t) -> bool:
 
     if t > 0:  # avoid a crash from a bad time
         cv.putText(im, f"FPS: {1 / t:.2f}", (5, 15), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1)
-    cv.putText(im, f"Gesture: ", (5, 30), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1)
+    cv.putText(im, f"Gesture: {gesture}", (5, 30), cv.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1)
 
     cv.imshow("Image", im)
     alive = True

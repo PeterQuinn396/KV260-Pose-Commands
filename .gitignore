@@ -1,4 +1,4 @@
-dataset/*
+model/dataset/*
 .idea
 
-!dataset/readme.md
+!model/dataset/readme.md
