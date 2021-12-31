@@ -1,4 +1,4 @@
 model/dataset/*
 .idea
-
+*__pycache__*
 !model/dataset/readme.md
