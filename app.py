@@ -8,10 +8,10 @@ from PIL import Image
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
-# model specifics
-from model.model import GestureClassifyModel
-from model.asl_dataset import preprocess, CATEGORIES
-from model.common import device
+# model_data specifics
+from model_data.model import GestureClassifyModel
+from model_data.asl_dataset import preprocess, CATEGORIES
+from model_data.common import device
 
 VITIS_DETECTED = True
 
@@ -88,8 +88,8 @@ def crop_hand(image, hands):
 
 
 def load_model():
-    print("Loading model...")
-    model = GestureClassifyModel("model/asl_resnext.pth")
+    print("Loading model_data...")
+    model = GestureClassifyModel("model_data/asl_resnext.pth")
     model.to(device)
     print("Done")
     return model
@@ -103,7 +103,7 @@ def run_inference(model, image):
 
         input = Image.fromarray(image, 'RGB')
         input = preprocess(input)
-        input = input.unsqueeze(0)  # model expects batch i.e. [BATCH, C, H, W]
+        input = input.unsqueeze(0)  # model_data expects batch i.e. [BATCH, C, H, W]
         input.to(device)
         return model.forward(input)
 

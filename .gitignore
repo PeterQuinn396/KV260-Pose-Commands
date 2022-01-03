@@ -1,5 +1,5 @@
-model/dataset/*
+model_data/dataset/*
 *adbkey*
 .idea
 *__pycache__*
-!model/dataset/readme.md
+!model_data/dataset/readme.md

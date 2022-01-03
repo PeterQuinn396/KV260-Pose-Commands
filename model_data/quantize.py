@@ -1,7 +1,6 @@
 import torch
-from .common import device
-from .asl_dataset import ASLDataset, preprocess
-from .model import loss_fn, GestureClassifyModel, get_dataloader, test
+from common import device
+from model import GestureClassifyModel, get_dataloader, test
 import argparse
 
 from pytorch_nndct.apis import torch_quantizer, dump_xmodel

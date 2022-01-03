@@ -1,8 +1,10 @@
 import torch
 
 from .asl_dataset import CATEGORIES, ASLDataset, preprocess
-from model.common import device
+from .common import device
 
+
+from .resnet import resnext50_32x4d
 
 class GestureClassifyModel(torch.nn.Module):
 
@@ -10,8 +12,8 @@ class GestureClassifyModel(torch.nn.Module):
         super().__init__()
 
         # we will be loading our own state_dict, so we can leave pretrained false
-        self.model = torch.hub.load('pytorch/vision:v0.10.0', 'resnext50_32x4d', pretrained=False)
-        # adjust final layer of the pretrained model to have the correct number of classes
+        self.model = resnext50_32x4d(pretrained=False)
+        # adjust final layer of the pretrained model_data to have the correct number of classes
         self.model.fc = torch.nn.Linear(self.model.fc.in_features, len(CATEGORIES))
         self.model.load_state_dict(torch.load(path, map_location=device))
         self.model.eval()
@@ -33,7 +35,7 @@ def get_dataloader(data_set_path: str):
 
 def test_vitis_compatible(model):
     """
-    Run the torch jit check to make sure the model is quatizable
+    Run the torch jit check to make sure the model_data is quatizable
     by Vitis
     :param model:
     :return:
