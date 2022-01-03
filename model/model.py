@@ -1,7 +1,7 @@
 import torch
 
 from .asl_dataset import CATEGORIES, ASLDataset, preprocess
-from common import device
+from model.common import device
 
 
 class GestureClassifyModel(torch.nn.Module):

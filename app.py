@@ -11,7 +11,7 @@ mp_hands = mp.solutions.hands
 # model specifics
 from model.model import GestureClassifyModel
 from model.asl_dataset import preprocess, CATEGORIES
-from common import device
+from model.common import device
 
 VITIS_DETECTED = True
 

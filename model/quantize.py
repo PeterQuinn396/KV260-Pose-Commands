@@ -1,5 +1,5 @@
 import torch
-from ..common import device
+from .common import device
 from .asl_dataset import ASLDataset, preprocess
 from .model import loss_fn, GestureClassifyModel, get_dataloader, test
 import argparse
