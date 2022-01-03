@@ -5,18 +5,32 @@ import argparse
 
 from pytorch_nndct.apis import torch_quantizer, dump_xmodel
 
+from resnet import resnet101
+
 """
 To be run inside the Vitis AI docker, after running `conda activate vitis-ai-pytorch`
 """
 
-def quantize(model, val_loader, quant_mode):
-    input = torch.randn([1, 3, 224, 224])
-    quantizer = torch_quantizer(quant_mode, model, (input))
+def quantize(model, quant_mode, batch_size):
+
+    if quant_mode == 'test':
+        batch_size = 1
+        rand_in = torch.randn([1, 3, 224, 224])
+    else:
+        rand_in = torch.randn([batch_size, 3, 224, 224])
+
+    # force to merge BN with CONV for better quantization accuracy
+    # magic value that gets parsed by vitis?
+    # optimize = 1
+
+
+    quantizer = torch_quantizer(quant_mode, model, (rand_in), device=device)
     quant_model = quantizer.quant_model
 
     # make custom test fn, that takes a torch data loader and a loss_fn
-    acc1_gen, loss_gen = test(quant_model, val_loader)
-    print(f'Acc: {acc1_gen}, loss: {loss_gen}')
+    dataloader = get_dataloader('dataset/original_frames', batch_size=batch_size)
+    acc1_gen, loss_gen, count = test(quant_model, dataloader, max_samples=10)
+    print(f'Acc: {acc1_gen}, loss: {loss_gen}, count {count}')
 
     if quant_mode == 'calib':
         quantizer.export_quant_config()
@@ -36,12 +50,14 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
+    batch_size = 4
 
-    model = GestureClassifyModel("asl_resnext.pth")
+    #model = GestureClassifyModel("asl_resnext_old_fmt.pth")
+    model = resnet101(pretrained=False)
+    model.fc = model.fc = torch.nn.Linear(model.fc.in_features, 24)
     model.to(device)
-    dataloader = get_dataloader('dataset/original_frames')
 
-    quantize(model, dataloader, args.quant_mode)
+    quantize(model, args.quant_mode, batch_size)
 
 if __name__ == "__main__":
     main()
