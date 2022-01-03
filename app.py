@@ -63,10 +63,7 @@ def crop_hand(image, hands):
     im_cp = image.copy()
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(
-                im_cp,
-                hand_landmarks,
-                mp_hands.HAND_CONNECTIONS)
+            mp_drawing.draw_landmarks(im_cp, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
     cropped_im = None
     if results.multi_hand_landmarks:
@@ -74,11 +71,14 @@ def crop_hand(image, hands):
         cnt = [[pt.x * im_width, pt.y * im_height] for pt in points]
         cnt = np.array(cnt, int)
         x, y, w, h = cv.boundingRect(cnt)
-        scale = 2
-        x1 = int(max(0, x - w / scale))
-        y1 = int(max(0, y - h / scale))
-        x2 = int(min(im_width, x + w + w / scale))
-        y2 = int(min(im_height, y + h + h / scale))
+
+        # make a square
+        d = max(w, h)
+        pad = d / 3
+        x1 = int(max(0, x - pad))
+        y1 = int(max(0, y - pad))
+        x2 = int(min(im_width, x + d + pad))
+        y2 = int(min(im_height, y + d + pad))
 
         cropped_im = image[y1:y2, x1:x2].copy()  # slice bounding box of hand
         # draw the rectange on the image in place
@@ -140,13 +140,11 @@ def display_image(image, gesture, probability, time) -> bool:
 
 
 def main():
-    cam = open_video()
+    cam = open_video(cam_id=0)
 
     model = load_model()
     alive = True
-    hands = mp_hands.Hands(min_detection_confidence=.5,
-                           min_tracking_confidence=.5,
-                           max_num_hands=1)
+    hands = mp_hands.Hands(min_detection_confidence=.5, min_tracking_confidence=.5, max_num_hands=1)
 
     while cam.isOpened() and alive:
         start_time = time.time()
