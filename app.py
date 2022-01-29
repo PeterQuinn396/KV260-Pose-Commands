@@ -3,15 +3,16 @@ import time
 import cv2 as cv
 import mediapipe as mp
 import torch
-from PIL import Image
 
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
-# model_data specifics
-from model_data.model import GestureClassifyModel
-from model_data.asl_dataset import preprocess, CATEGORIES
+from model_data.dhg.model import HandGestureNet
+from model_data.dhg.dataloader import CATEGORIES
+
 from model_data.common import device
+
+from hand_detector import HandDetector
 
 VITIS_DETECTED = True
 
@@ -24,91 +25,27 @@ except ModuleNotFoundError:
     VITIS_DETECTED = False
 
 
-def open_video(cam_id=0):
-    cap = cv.VideoCapture(cam_id)
-    if not cap.isOpened():
-        print("Error: cannot open camera")
-        exit(-1)
-
-    # grab test frame
-    ret, frame = cap.read()
-    # if frame is read correctly ret is True
-    if not ret:
-        print("Can't receive frame (stream end?). Exiting ...")
-        exit(-1)
-
-    return cap
-
-
-def get_frame(cam):
-    success, image = cam.read()
-    if not success:
-        print("Got empty camera frame")
-
-    # Flip the image horizontally for a later selfie-view display, and convert
-    # the BGR image to RGB.
-    image = cv.cvtColor(cv.flip(image, 1), cv.COLOR_BGR2RGB)
-    return image
-
-
-def crop_hand(image, hands):
-    im_height, im_width, _ = image.shape
-
-    # inference (might) run faster if image is read only
-    image.flags.writeable = False
-    results = hands.process(image)
-
-    # Draw the hand annotations on the image.
-    image.flags.writeable = True
-    im_cp = image.copy()
-    if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(im_cp, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-
-    cropped_im = None
-    if results.multi_hand_landmarks:
-        points = results.multi_hand_landmarks[0].landmark
-        cnt = [[pt.x * im_width, pt.y * im_height] for pt in points]
-        cnt = np.array(cnt, int)
-        x, y, w, h = cv.boundingRect(cnt)
-
-        # make a square
-        d = max(w, h)
-        pad = d / 3
-        x1 = int(max(0, x - pad))
-        y1 = int(max(0, y - pad))
-        x2 = int(min(im_width, x + d + pad))
-        y2 = int(min(im_height, y + d + pad))
-
-        cropped_im = image[y1:y2, x1:x2].copy()  # slice bounding box of hand
-        # draw the rectange on the image in place
-        cv.rectangle(im_cp, (x1, y1), (x2, y2), (255, 0, 255), 2)
-
-    return im_cp, cropped_im
-
-
 def load_model():
-    print("Loading model_data...")
-    model = GestureClassifyModel("model_data/asl_resnext.pth")
-    model.to(device)
-    print("Done")
-    return model
+    print("Loading model...")
+    m = HandGestureNet(n_channels=66, n_classes=14)
+    m.load_state_dict(torch.load("model_data/dhg/gesture_pretrained_model_old_fmt.pt", map_location=device))
+    m.eval()
+    m.to(device)
+    print('Done')
+
+    # if VITIS ...
+
+    return m
 
 
-def run_inference(model, image):
-    # convert to PIL image
-    with torch.no_grad():
-        cv.imshow("crop", cv.cvtColor(image, cv.COLOR_RGB2BGR))
-        cv.waitKey(1)
+def run_inference(model, input):
+    # if VITIS
+    # ...
 
-        input = Image.fromarray(image, 'RGB')
-        input = preprocess(input)
-        input = input.unsqueeze(0)  # model_data expects batch i.e. [BATCH, C, H, W]
-        input.to(device)
-        return model.forward(input)
+    return model(input.unsqueeze(0))
 
 
-def process_output(outputTensor, detection_threshold=.2):
+def process_output(outputTensor, detection_threshold=.5):
     out = outputTensor.squeeze()
     probs = torch.softmax(out, dim=0)
     max = torch.max(probs)
@@ -139,23 +76,39 @@ def display_image(image, gesture, probability, time) -> bool:
     return alive
 
 
+class HandLandmarkBuffer():
+    def __init__(self, size: int = 100, channels: int = 66):
+        self.buffer = torch.zeros((size, channels))
+
+    def add(self, x:np.ndarray):
+        # interpolate to produce an extra frame
+
+        flat = x.flatten()
+        next = torch.Tensor(flat)
+        extra = .5 * (torch.add(next, self.buffer[-1]))
+        self.buffer = torch.cat((self.buffer[2:], extra.unsqueeze(0), next.unsqueeze(0)), dim=0)
+
+
 def main():
-    cam = open_video(cam_id=0)
 
     model = load_model()
     alive = True
-    hands = mp_hands.Hands(min_detection_confidence=.5, min_tracking_confidence=.5, max_num_hands=1)
+
+    hand_detector = HandDetector()
+    cam = hand_detector.open_video(0)
+
+    data_buffer = HandLandmarkBuffer()
 
     while cam.isOpened() and alive:
         start_time = time.time()
-        image = get_frame(cam)
 
-        image, im_cropped = crop_hand(image, hands)
+        image, im_cropped, world_space_points = hand_detector.get_cropped_hand()
+        data_buffer.add(world_space_points)
 
         gesture = ""
         prob = ""
         if im_cropped is not None:
-            outputTensor = run_inference(model, im_cropped)
+            outputTensor = run_inference(model, data_buffer.buffer)
             gesture, prob = process_output(outputTensor)
 
         end_time = time.time()

@@ -2,4 +2,5 @@ model_data/dataset/*
 *adbkey*
 .idea
 *__pycache__*
-!model_data/dataset/readme.md
+model_data/to_delete
+**.pckl

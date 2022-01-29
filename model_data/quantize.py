@@ -1,48 +1,94 @@
 import torch
 from common import device
-from model import GestureClassifyModel, get_dataloader, test
+
 import argparse
 
 from pytorch_nndct.apis import torch_quantizer, dump_xmodel
 
-from resnet import resnet101
 
+from common import test_vitis_compatible
+from dhg_resnet.model import load_model as get_model
+from dhg_resnet.dataloader import get_dataloader
 """
 To be run inside the Vitis AI docker, after running `conda activate vitis-ai-pytorch`
 """
 
-def quantize(model, quant_mode, batch_size):
+
+def load_model():
+    print("Loading model...")
+    m = get_model()
+
+    # print(m)
+    m.load_state_dict(torch.load("dhg_resnet/gesture_resnet18_model_new_fmt.pt", map_location=device))
+
+    m.eval()
+    m.to(device)
+    print('Done')
+
+    # if VITIS ...
+
+    return m
+
+
+def test(model, dataloader):
+    model.eval()
+    acc = 0
+    with torch.no_grad():
+        for x, y_ref in dataloader:
+            x.to(device)
+            y_ref.to(device)
+            y_pred = model(x)
+            _, predicted = y_pred.max(dim=1)
+            correct = (predicted == y_ref)
+            acc += 1.0 * correct.sum().item() / y_ref.shape[0]
+    acc /= len(dataloader)
+    return acc,
+
+
+def quantize(model, quant_mode):
 
     if quant_mode == 'test':
         batch_size = 1
-        rand_in = torch.randn([1, 3, 224, 224])
     else:
-        rand_in = torch.randn([batch_size, 3, 224, 224])
+        batch_size = 8
+
+    rand_size = [batch_size, 3, 100, 22]
+    rand_in = torch.randn(rand_size)
+    print(f"Rand in size: {rand_in.size()}")
+    if not test_vitis_compatible(model,rand_size):
+        print('model failed jit test')
+        exit()
 
     # force to merge BN with CONV for better quantization accuracy
     # magic value that gets parsed by vitis?
     # optimize = 1
-
-
-    quantizer = torch_quantizer(quant_mode, model, (rand_in), device=device)
+    model.eval()
+    quantizer = torch_quantizer(quant_mode, model, (rand_in), device=device) #qat_proc=True
     quant_model = quantizer.quant_model
 
     # make custom test fn, that takes a torch data loader and a loss_fn
-    dataloader = get_dataloader('dataset/original_frames', batch_size=batch_size)
-    acc1_gen, loss_gen, count = test(quant_model, dataloader, max_samples=10)
-    print(f'Acc: {acc1_gen}, loss: {loss_gen}, count {count}')
 
     if quant_mode == 'calib':
+        dataloader_train, dataloader_test = get_dataloader('dhg_resnet/dhg_data.pckl')
+        acc1_gen = test(quant_model, dataloader_test)
+        print(f'Acc: {acc1_gen}')  # , loss: {loss_gen}, count {count}')
+
+        print("Running export_quant_config...")
         quantizer.export_quant_config()
+
     if quant_mode == 'test':
+        y = quant_model(rand_in)
+
+        print("Running export_xmodel...")
         quantizer.export_xmodel(deploy_check=False)
 
 
 def get_parser():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--quant_mode', choices=['test', 'calib'])
-    parser.add_argument('--deploy', action='store_true')
-    parser.add_argument('--subset_length', default=1)
+    parser.add_argument('--quant_mode', choices=['test', 'calib'] ,
+                        help='Run calib mode before test mode')
+    #parser.add_argument('--deploy', action='store_true')
+    #parser.add_argument('--subset_length', default=1)
     return parser
 
 
@@ -50,14 +96,11 @@ def main():
     parser = get_parser()
     args = parser.parse_args()
 
-    batch_size = 4
-
-    #model = GestureClassifyModel("asl_resnext_old_fmt.pth")
-    model = resnet101(pretrained=False)
-    model.fc = model.fc = torch.nn.Linear(model.fc.in_features, 24)
+    model = load_model()
     model.to(device)
 
-    quantize(model, args.quant_mode, batch_size)
+    quantize(model, args.quant_mode)
+
 
 if __name__ == "__main__":
     main()
