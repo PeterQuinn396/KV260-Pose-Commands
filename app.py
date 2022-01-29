@@ -3,12 +3,13 @@ import time
 import cv2 as cv
 import mediapipe as mp
 import torch
+from typing import List
 
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
-from model_data.dhg.model import HandGestureNet
-from model_data.dhg.dataloader import CATEGORIES
+from model_data.dhg_resnet.model import load_model as get_model
+from model_data.dhg_resnet.dataloader import CATEGORIES
 
 from model_data.common import device
 
@@ -25,24 +26,62 @@ except ModuleNotFoundError:
     VITIS_DETECTED = False
 
 
-def load_model():
-    print("Loading model...")
-    m = HandGestureNet(n_channels=66, n_classes=14)
-    m.load_state_dict(torch.load("model_data/dhg/gesture_pretrained_model_old_fmt.pt", map_location=device))
-    m.eval()
-    m.to(device)
-    print('Done')
+# not sure what this for
+def get_child_subgraph_dpu(graph: "Graph") -> List["Subgraph"]:
+    assert graph is not None, "'graph' should not be None."
+    root_subgraph = graph.get_root_subgraph()
+    assert (root_subgraph is not None), "Failed to get root subgraph of input Graph object."
+    if root_subgraph.is_leaf:
+        return []
+    child_subgraphs = root_subgraph.toposort_child_subgraph()
+    assert child_subgraphs is not None and len(child_subgraphs) > 0
+    return [
+        cs
+        for cs in child_subgraphs
+        if cs.has_attr("device") and cs.get_attr("device").upper() == "DPU"
+    ]
 
-    # if VITIS ...
+def load_model():
+
+    if VITIS_DETECTED:
+        g = xir.Graph.deserialize("modle_data/dhg_resnet/quantize_result/Gesture_Resnet.xmodel")
+        subgraphs = get_child_subgraph_dpu(g)
+        m = vart.Runner.createRunner(subgraphs[0], "run")
+
+    else:
+        print("Loading model...")
+        m = get_model()
+        m.load_state_dict(torch.load("model_data/dhg_resnet/gesture_resnet18_model_new_fmt.pt", map_location=device))
+        m.eval()
+        m.to(device)
+        print('Done')
 
     return m
 
 
-def run_inference(model, input):
+def run_inference(model, _input):
     # if VITIS
     # ...
 
-    return model(input.unsqueeze(0))
+    input = _input.reshape(1,3,100,22)
+    
+    if VITIS_DETECTED:
+
+        # get pointers to IO data
+        inputData = model.get_input_tensors()
+        outputData = model.get_output_tensors()
+
+        # load somehow?
+        inputData[0] = input
+
+        job_id = model.execute_async(inputData,outputData[0])
+        model.wait(job_id)
+        y = outputData
+
+    else:
+        y = model(input)
+
+    return y
 
 
 def process_output(outputTensor, detection_threshold=.5):

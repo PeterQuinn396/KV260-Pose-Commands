@@ -82,7 +82,7 @@ class HandDetector():
         world_space_coords = hand_landmark_data.multi_hand_world_landmarks[0].landmark
         arr = [[pt.x, pt.y, pt.z] for pt in world_space_coords]
         arr = np.array(arr)
-        index_arr = np.array([0, 5, 9, 13, 17])
+        index_arr = np.array([0, 9])
         palm_center = np.mean(arr[index_arr])
         arr = np.insert(arr, 1, palm_center, axis=0)
 
