@@ -1,6 +1,7 @@
 import numpy as np
 import time
 import cv2 as cv
+
 import mediapipe as mp
 import torch
 from typing import List
@@ -60,11 +61,9 @@ def load_model():
 
 
 def run_inference(model, _input):
-    # if VITIS
-    # ...
 
     input = _input.reshape(1,3,100,22)
-    
+
     if VITIS_DETECTED:
 
         # get pointers to IO data
