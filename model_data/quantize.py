@@ -7,8 +7,7 @@ from pytorch_nndct.apis import torch_quantizer, dump_xmodel
 
 
 from common import test_vitis_compatible
-from dhg_resnet.model import load_model as get_model
-from dhg_resnet.dataloader import get_dataloader
+from custom_dataset.model import get_model, get_dataloader, CATEGORIES
 """
 To be run inside the Vitis AI docker, after running `conda activate vitis-ai-pytorch`
 """
@@ -52,7 +51,7 @@ def quantize(model, quant_mode):
     else:
         batch_size = 8
 
-    rand_size = [batch_size, 3, 100, 22]
+    rand_size = [batch_size, 3, 1080, 1920]
     rand_in = torch.randn(rand_size)
     print(f"Rand in size: {rand_in.size()}")
     if not test_vitis_compatible(model,rand_size):

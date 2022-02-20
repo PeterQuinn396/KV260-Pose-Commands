@@ -45,7 +45,7 @@ def get_child_subgraph_dpu(graph: "Graph") -> List["Subgraph"]:
 def load_model():
 
     if VITIS_DETECTED:
-        g = xir.Graph.deserialize("modle_data/dhg_resnet/quantize_result/Gesture_Resnet.xmodel")
+        g = xir.Graph.deserialize("model_data/dhg_resnet/quantize_result/Gesture_Resnet.xmodel")
         subgraphs = get_child_subgraph_dpu(g)
         m = vart.Runner.createRunner(subgraphs[0], "run")
 

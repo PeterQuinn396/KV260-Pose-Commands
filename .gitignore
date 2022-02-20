@@ -1,6 +1,10 @@
 model_data/dataset/*
+model_data/to_delete
+model_data/custom_dataset/data
 *adbkey*
 .idea
 *__pycache__*
-model_data/to_delete
+
 **.pckl
+env
+venv
