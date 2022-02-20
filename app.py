@@ -1,3 +1,5 @@
+import os.path
+
 import numpy as np
 import time
 import cv2 as cv
@@ -32,16 +34,19 @@ def get_child_subgraph_dpu(graph: "Graph") -> List["Subgraph"]:
         return []
     child_subgraphs = root_subgraph.toposort_child_subgraph()
     assert child_subgraphs is not None and len(child_subgraphs) > 0
-    return [
-        cs
-        for cs in child_subgraphs
-        if cs.has_attr("device") and cs.get_attr("device").upper() == "DPU"
-    ]
+    return [cs for cs in child_subgraphs if cs.has_attr("device") and cs.get_attr("device").upper() == "DPU"]
 
 
 def load_model():
     if VITIS_DETECTED:
-        g = xir.Graph.deserialize("model_data/dhg_resnet/quantize_result/Gesture_Resnet.xmodel")
+
+        path = "model_data/custom_dataset/ResNet_int.xmodel"
+
+        if not os.path.exists(path):
+            raise ValueError(f"path to xmodel does not exist, {path}")
+
+        g = xir.Graph.deserialize(path)
+
         subgraphs = get_child_subgraph_dpu(g)
         m = vart.Runner.createRunner(subgraphs[0], "run")
 
@@ -58,7 +63,9 @@ def load_model():
 
 
 def run_inference(model, _input):
+
     input = _input.reshape(1, 3, 1080, 1920)
+
 
     if VITIS_DETECTED:
 
@@ -116,13 +123,13 @@ def open_video(cam_id=0):
         print("Error: cannot open camera")
         exit(-1)
 
+
     # grab test frame
     ret, frame = cap.read()
     # if frame is read correctly ret is True
     if not ret:
         print("Can't receive frame (stream end?). Exiting ...")
         exit(-1)
-
     return cap
 
 
@@ -130,7 +137,6 @@ def get_frame(cam):
     success, image = cam.read()
     if not success:
         print("Got empty camera frame")
-
     # Flip the image horizontally for a later selfie-view display, and convert
     # the BGR image to RGB.
     image = cv.cvtColor(cv.flip(image, 1), cv.COLOR_BGR2RGB)
@@ -139,6 +145,7 @@ def get_frame(cam):
 
 def main():
     model = load_model()
+
     alive = True
 
     cam = open_video()
@@ -150,6 +157,7 @@ def main():
 
         gesture = ""
         prob = ""
+
         if frame is not None:
             outputTensor = run_inference(model, frame)
             gesture, prob = process_output(outputTensor)
