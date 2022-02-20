@@ -6,11 +6,7 @@ import mediapipe as mp
 import torch
 from typing import List
 
-mp_drawing = mp.solutions.drawing_utils
-mp_hands = mp.solutions.hands
-
-from model_data.dhg_resnet.model import load_model as get_model
-from model_data.dhg_resnet.dataloader import CATEGORIES
+from model_data.custom_dataset.model import get_model, CATEGORIES
 
 from model_data.common import device
 
@@ -42,8 +38,8 @@ def get_child_subgraph_dpu(graph: "Graph") -> List["Subgraph"]:
         if cs.has_attr("device") and cs.get_attr("device").upper() == "DPU"
     ]
 
-def load_model():
 
+def load_model():
     if VITIS_DETECTED:
         g = xir.Graph.deserialize("model_data/dhg_resnet/quantize_result/Gesture_Resnet.xmodel")
         subgraphs = get_child_subgraph_dpu(g)
@@ -52,7 +48,8 @@ def load_model():
     else:
         print("Loading model...")
         m = get_model()
-        m.load_state_dict(torch.load("model_data/dhg_resnet/gesture_resnet18_model_new_fmt.pt", map_location=device))
+        m.load_state_dict(
+            torch.load("model_data/custom_dataset/gesture_resnet18_custom_dataset.pt", map_location=device))
         m.eval()
         m.to(device)
         print('Done')
@@ -61,8 +58,7 @@ def load_model():
 
 
 def run_inference(model, _input):
-
-    input = _input.reshape(1,3,100,22)
+    input = _input.reshape(1, 3, 1080, 1920)
 
     if VITIS_DETECTED:
 
@@ -73,7 +69,7 @@ def run_inference(model, _input):
         # load somehow?
         inputData[0] = input
 
-        job_id = model.execute_async(inputData,outputData[0])
+        job_id = model.execute_async(inputData, outputData[0])
         model.wait(job_id)
         y = outputData
 
@@ -114,44 +110,55 @@ def display_image(image, gesture, probability, time) -> bool:
     return alive
 
 
-class HandLandmarkBuffer():
-    def __init__(self, size: int = 100, channels: int = 66):
-        self.buffer = torch.zeros((size, channels))
+def open_video(cam_id=0):
+    cap = cv.VideoCapture(cam_id)
+    if not cap.isOpened():
+        print("Error: cannot open camera")
+        exit(-1)
 
-    def add(self, x:np.ndarray):
-        # interpolate to produce an extra frame
+    # grab test frame
+    ret, frame = cap.read()
+    # if frame is read correctly ret is True
+    if not ret:
+        print("Can't receive frame (stream end?). Exiting ...")
+        exit(-1)
 
-        flat = x.flatten()
-        next = torch.Tensor(flat)
-        extra = .5 * (torch.add(next, self.buffer[-1]))
-        self.buffer = torch.cat((self.buffer[2:], extra.unsqueeze(0), next.unsqueeze(0)), dim=0)
+    self.cam = cap
+
+    return cap
+
+
+def get_frame(cam):
+    success, image = cam.read()
+    if not success:
+        print("Got empty camera frame")
+
+    # Flip the image horizontally for a later selfie-view display, and convert
+    # the BGR image to RGB.
+    image = cv.cvtColor(cv.flip(image, 1), cv.COLOR_BGR2RGB)
+    return image
 
 
 def main():
-
     model = load_model()
     alive = True
 
-    hand_detector = HandDetector()
-    cam = hand_detector.open_video(0)
-
-    data_buffer = HandLandmarkBuffer()
+    cam = open_video()
 
     while cam.isOpened() and alive:
         start_time = time.time()
 
-        image, im_cropped, world_space_points = hand_detector.get_cropped_hand()
-        data_buffer.add(world_space_points)
+        frame = get_frame(cam)
 
         gesture = ""
         prob = ""
-        if im_cropped is not None:
-            outputTensor = run_inference(model, data_buffer.buffer)
+        if frame is not None:
+            outputTensor = run_inference(model, frame)
             gesture, prob = process_output(outputTensor)
 
         end_time = time.time()
         dt = end_time - start_time
-        alive = display_image(image, gesture, prob, dt)
+        alive = display_image(frame, gesture, prob, dt)
 
         send_message()
 
