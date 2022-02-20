@@ -123,8 +123,6 @@ def open_video(cam_id=0):
         print("Can't receive frame (stream end?). Exiting ...")
         exit(-1)
 
-    self.cam = cap
-
     return cap
 
 
