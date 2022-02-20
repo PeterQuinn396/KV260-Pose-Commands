@@ -20,13 +20,13 @@ def make_pickle_file(base_dir: str = 'data'):
     for index, category in enumerate(CATEGORIES):
         path = os.path.join(base_dir, category)
         jpgs = sorted(glob.glob(f'{path}/*.jpg'))
-        print(f'Generating train set for {category}...')
-        for i in range(MAX_IMAGES - TEST_SIZE):
-            im = Image.open(jpgs[i])
-            arr = np.array(im)
-            arr = np.moveaxis(arr, -1, 0)  # move channels to front for pytorch
-            train_x.append(arr)
-            train_y.append(index)
+        # print(f'Generating train set for {category}...')
+        # for i in range(MAX_IMAGES - TEST_SIZE):
+        #     im = Image.open(jpgs[i])
+        #     arr = np.array(im)
+        #     arr = np.moveaxis(arr, -1, 0)  # move channels to front for pytorch
+        #     train_x.append(arr)
+        #     train_y.append(index)
 
         print(f'Generating test set for {category}...')
         for i in range(MAX_IMAGES - TEST_SIZE, MAX_IMAGES):
@@ -36,17 +36,22 @@ def make_pickle_file(base_dir: str = 'data'):
             test_x.append(arr)
             test_y.append(index)
 
-    output = {
-        'train_x': train_x,
-        'train_y': train_y,
+    # train = {
+    #     'train_x': train_x,
+    #     'train_y': train_y,
+    # }
+
+    test = {
         'test_x' : test_x,
         'test_y' : test_y,
     }
     #print(output)
     print("Writing pickle file...")
-    with open('custom_dataset.pckl', 'wb+') as f:
-        pickle.dump(output, f)
-
+    # with open('custom_dataset_train.pckl', 'wb+') as f:
+    #     pickle.dump(train, f)
+    #
+    with open('custom_dataset_test.pckl', 'wb+') as f:
+        pickle.dump(test, f)
 
 if __name__ == '__main__':
     make_pickle_file()

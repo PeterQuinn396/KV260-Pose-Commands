@@ -18,7 +18,7 @@ def load_model():
     m = get_model()
 
     # print(m)
-    m.load_state_dict(torch.load("dhg_resnet/gesture_resnet18_model_new_fmt.pt", map_location=device))
+    m.load_state_dict(torch.load("custom_dataset/gesture_resnet18_custom_dataset.pt", map_location=device))
 
     m.eval()
     m.to(device)
@@ -49,7 +49,7 @@ def quantize(model, quant_mode):
     if quant_mode == 'test':
         batch_size = 1
     else:
-        batch_size = 8
+        batch_size = 1
 
     rand_size = [batch_size, 3, 1080, 1920]
     rand_in = torch.randn(rand_size)
@@ -60,7 +60,7 @@ def quantize(model, quant_mode):
 
     # force to merge BN with CONV for better quantization accuracy
     # magic value that gets parsed by vitis?
-    # optimize = 1
+    optimize = 1
     model.eval()
     quantizer = torch_quantizer(quant_mode, model, (rand_in), device=device) #qat_proc=True
     quant_model = quantizer.quant_model
@@ -68,7 +68,9 @@ def quantize(model, quant_mode):
     # make custom test fn, that takes a torch data loader and a loss_fn
 
     if quant_mode == 'calib':
-        dataloader_train, dataloader_test = get_dataloader('dhg_resnet/dhg_data.pckl')
+        print("Getting data loader...")
+        dataloader_test = get_dataloader('custom_dataset/custom_dataset_test.pckl')
+        print("Running test set...")
         acc1_gen = test(quant_model, dataloader_test)
         print(f'Acc: {acc1_gen}')  # , loss: {loss_gen}, count {count}')
 
@@ -79,7 +81,7 @@ def quantize(model, quant_mode):
         y = quant_model(rand_in)
 
         print("Running export_xmodel...")
-        quantizer.export_xmodel(deploy_check=False)
+        quantizer.export_xmodel(deploy_check=True)
 
 
 def get_parser():
