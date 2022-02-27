@@ -2,6 +2,7 @@ import glob
 import os
 
 import torch
+import torch.nn as nn
 import torchvision
 from torch.utils.data import Dataset, DataLoader
 import pickle
@@ -24,7 +25,10 @@ class GestureDataset(Dataset):
         return len(self.x)
 
     def __getitem__(self, i):
+        mid = 1920 // 2
+        ext = 1080 // 2
         x = self.x[i] / 255.
+        x = x[..., mid - ext:mid + ext]
         return x, self.y[i]
 
 
@@ -82,7 +86,6 @@ def get_dataloader(path='./custom_dataset/custom_dataset_test.pckl'):
 
 
 def get_pickle_dataset(path='./custom_dataset/custom_dataset_test.pckl'):
-
     with open(path, 'rb') as f:
         pickled_dict = pickle.load(f)
     # train_x, train_y = np.array(pickled_dict["train_x"]), np.array(pickled_dict["train_y"])
@@ -108,7 +111,47 @@ def get_dataloader_files(folder):
     return test_dataloader
 
 
+class MyResnet(nn.Module):
+    def __init__(self, pretrained=False) -> None:
+        super().__init__()
+        num_classes = 6
+        model = torchvision.models.resnet18(pretrained=pretrained)
+        model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
+        self._resnet = model
+        self.extra_ave_pool = nn.AvgPool2d((7, 7))
+
+    def forward(self, x):
+        x = self._resnet.conv1(x)
+        x = self._resnet.bn1(x)
+        x = self._resnet.relu(x)
+        x = self._resnet.maxpool(x)
+
+        x = self._resnet.layer1(x)
+        x = self._resnet.layer2(x)
+        x = self._resnet.layer3(x)
+        x = self._resnet.layer4(x)
+
+        x = self.extra_ave_pool(x)
+        x = self._resnet.avgpool(x)
+        x = torch.reshape(x, (-1, self._resnet.fc.in_features))
+        x = self._resnet.fc(x)
+        return x
+
+
 def get_model():
-    model = torchvision.models.resnet18()
-    model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
+    model = MyResnet()
     return model
+
+
+if __name__ == '__main__':
+    model = get_model()
+    print(model)
+    x = torch.rand(1, 3, 1080, 1920)
+    mid = 1920 // 2
+    ext = 1080 // 2
+    x = x[..., mid - ext:mid + ext]
+
+    print(x.size())
+    y = model(x)
+    print(y)
+    print(y.size())

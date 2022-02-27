@@ -20,8 +20,7 @@ def load_model():
     print("Loading model...")
     m = get_model()
 
-    # print(m)
-    m.load_state_dict(torch.load("custom_dataset/gesture_resnet18_custom_dataset_old_fmt.pt", map_location=device))
+    m.load_state_dict(torch.load("custom_dataset/gesture_custom_resnet18_custom_dataset_old_fmt.pt", map_location=device))
 
     m.eval()
     m.to(device)
@@ -53,11 +52,16 @@ def test(model, dataloader):
 def test_dataset(model, dataset):
     model.eval()
     acc = 0
+
+    mid = 1920 // 2
+    ext = 1080 // 2
+
     with torch.no_grad():
         for i in range(len(dataset)):
             print(f'{i+1}/{len(dataset)}')
             x, y_ref = dataset[i]
             x.to(device)
+            x = x[..., mid - ext:mid + ext] # center crop to square
             y_ref.to(device)
             y_pred = model(x.unsqueeze(0))
             _, predicted = y_pred.max(dim=1)
@@ -76,7 +80,7 @@ def quantize(model, quant_mode):
     else:
         batch_size = 1
 
-    rand_size = [batch_size, 3, 1080, 1920]
+    rand_size = [batch_size, 3, 1080, 1080]
     rand_in = torch.randn(rand_size)
     print(f"Rand in size: {rand_in.size()}")
     if not test_vitis_compatible(model, rand_size):
