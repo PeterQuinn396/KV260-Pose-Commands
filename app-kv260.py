@@ -42,7 +42,7 @@ def get_frame(cam):
         print("Got empty camera frame")
     # Flip the image horizontally for a later selfie-view display, and convert
     # the BGR image to RGB.
-    image = cv2.cvtColor(cv2.flip(image, 1), cv2.COLOR_BGR2RGB)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
 
 
@@ -60,7 +60,7 @@ def softmax(x):
     return np.exp(x) / sum(np.exp(x))
 
 
-def process_output(outputTensor, detection_threshold=.75):
+def process_output(outputTensor, detection_threshold=.05):
     out = outputTensor.squeeze()
     probs = softmax(out)
     max_prob = np.max(probs)
@@ -76,8 +76,6 @@ def send_message():
 
 
 def display_image(image, gesture, probability, time) -> bool:
-
-
     # input is rgb
     im = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     im = cv2.resize(im, (im.shape[1] // 4, im.shape[0] // 4))
@@ -129,7 +127,7 @@ def main():
             job_id = dpu.execute_async(input_data, output_data)
             dpu.wait(job_id)
             y = output_data[0]
-            gesture, prob = process_output(y, detection_threshold=.75)
+            gesture, prob = process_output(y, detection_threshold=.05)
 
         end_time = time.time()
         dt = end_time - start_time
