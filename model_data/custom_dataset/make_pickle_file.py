@@ -2,7 +2,6 @@ import glob
 import pickle
 import os
 from PIL import Image
-import cv2.cv2
 import numpy as np
 
 CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']

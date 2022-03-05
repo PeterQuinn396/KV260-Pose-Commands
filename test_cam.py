@@ -1,9 +1,8 @@
-import cv2 as cv
-
+import cv2
 
 
 def open_video(cam_id=0):
-    cap = cv.VideoCapture(cam_id)
+    cap = cv2.VideoCapture(cam_id)
     if not cap.isOpened():
         print("Error: cannot open camera")
         exit(-1)
@@ -21,7 +20,6 @@ def open_video(cam_id=0):
 
 if __name__ == '__main__':
     cam = open_video(0)
-
     while True:
         success, image = cam.read()
         if not success:
@@ -29,10 +27,12 @@ if __name__ == '__main__':
 
         # Flip the image horizontally for a later selfie-view display, and convert
         # the BGR image to RGB.
-        image = cv.flip(image, 1)
+        image = cv2.flip(image, 1)
 
-        cv.imshow("Image", image)
+        cv2.imshow("Image", image)
 
-        if cv.waitKey(1) & 0xFF == 27:
+        print(image.shape)
+        if cv2.waitKey(1) & 0xFF == 27:
+            cam.release()
             break
 
