@@ -4,13 +4,15 @@ import os
 import time
 from pynq_dpu import DpuOverlay
 
-from app_kv260 import process_output, preprocess_frame
+from app_kv260 import process_output, preprocess_frame, display_image
 
 if __name__ == '__main__':
-    im_path = 'test_image_fist.jpg'
+    im_path = 'fist_5.jpg'
     im = Image.open(im_path)
     arr = np.array(im)
-    arr = np.moveaxis(arr, -1, 0)  # move channels to front for pytorch
+    #arr = np.moveaxis(arr, -1, 0)  # move channels to front for pytorch
+
+    display_image(arr, 'test', 1, 1)
 
     # set up model
     overlay = DpuOverlay("dpu.bit")
