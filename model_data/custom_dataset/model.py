@@ -143,6 +143,9 @@ def get_model():
     return model
 
 
+def get_model_pose():
+    return torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
+
 if __name__ == '__main__':
     model = get_model()
     print(model)
