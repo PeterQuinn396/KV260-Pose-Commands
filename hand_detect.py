@@ -6,6 +6,8 @@ mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
 
+
+
 def open_video():
     cap = cv.VideoCapture(0)
     if not cap.isOpened():

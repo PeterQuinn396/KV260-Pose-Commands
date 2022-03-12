@@ -16,6 +16,8 @@ hand_detector = mp_hands.Hands(min_detection_confidence=.5, min_tracking_confide
 
 CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']
 
+from controllers.firetv_controller import FireTVController
+
 
 def open_video(cam_id=0):
     cap = cv2.VideoCapture(cam_id + cv2.CAP_V4L2)
@@ -39,7 +41,9 @@ def open_video(cam_id=0):
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"Cam resolution: {width}, {height}")
-
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    buf_size = cap.get(cv2.CAP_PROP_BUFFERSIZE)
+    print(f"Buffer size: {buf_size}") # make sure there is no build up of frames from slow processing
     return cap
 
 
@@ -89,8 +93,19 @@ def process_output(outputTensor, detection_threshold=.05):
     return gesture, max_prob
 
 
-def send_message():
-    pass
+def send_message(firetv_controller, gesture):
+    if gesture == 'up':
+        firetv_controller.send_command('up')
+    elif gesture == 'down':
+        firetv_controller.send_command('down')
+    elif gesture == 'left':
+        firetv_controller.send_command('left')
+    elif gesture == 'right':
+        firetv_controller.send_command('right')
+    elif gesture == 'palm':
+        firetv_controller.send_command('select')
+    elif gesture == 'fist':
+        firetv_controller.send_command('back')
 
 
 def display_image(image, gesture, probability, time) -> bool:
@@ -109,6 +124,7 @@ def display_image(image, gesture, probability, time) -> bool:
 
 
 def main():
+    # Set up the DPU by loading our model and allocating memory for the input and output
     overlay = DpuOverlay("dpu.bit")
 
     path = '/home/ubuntu/KV260-Pose-Commands/model_data/custom_dataset/simple_mlp_kv260.xmodel'
@@ -128,6 +144,10 @@ def main():
     output_data = [np.empty(shapeOut, dtype=np.float32, order="C")]
     input_data = [np.empty(shapeIn, dtype=np.float32, order="C")]
 
+    firetv_controller = FireTVController()  # Insert your own controller code here
+    firetv_controller.add_device("192.168.2.138")  # Change to match your device IP address
+
+    # open up the webcam
     alive = True
     cam = open_video()
 
@@ -143,26 +163,27 @@ def main():
 
         results = hand_detector.process(im)  # trick the tracker
 
-        if results is None:
+        if results.multi_hand_landmarks is None:
             continue
 
         x = get_3d_points(results)
-
-        for hand_landmarks in results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(im, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
         input_data[0] = x
         job_id = dpu.execute_async(input_data, output_data)
         dpu.wait(job_id)
         y = output_data[0]
-        gesture, prob = process_output(y, detection_threshold=.05)
+        gesture, prob = process_output(y, detection_threshold=.2)
 
         end_time = time.time()
         dt = end_time - start_time
 
-        alive = display_image(frame, gesture, prob, dt)
-        print(f"{gesture}, {prob}, {dt}")
-        send_message()
+        # for hand_landmarks in results.multi_hand_landmarks:
+        #     mp_drawing.draw_landmarks(im, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+        # alive = display_image(im, gesture, prob, dt)
+
+        print(f"{gesture}, Prob: {prob}, Time: {dt}")
+        send_message(firetv_controller, gesture)
+        #time.sleep(.5)
 
 
 if __name__ == '__main__':

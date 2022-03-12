@@ -3,20 +3,23 @@ import numpy as np
 import os
 import time
 from pynq_dpu import DpuOverlay
-
-from app_kv260 import process_output, preprocess_frame, display_image
+import cv2
+from app_kv260 import process_output, preprocess_frame
 
 if __name__ == '__main__':
-    im_path = 'fist_5.jpg'
+    im_path = 'right_25.jpg'
     im = Image.open(im_path)
     arr = np.array(im)
     #arr = np.moveaxis(arr, -1, 0)  # move channels to front for pytorch
-
-    display_image(arr, 'test', 1, 1)
+    #
+    im_small = cv2.resize(cv2.cvtColor(arr, cv2.COLOR_RGB2BGR), (arr.shape[1] // 4, arr.shape[0] // 4))
+    cv2.imshow("Image", im_small)
+    cv2.waitKey(0)
 
     # set up model
     overlay = DpuOverlay("dpu.bit")
-    path = "model_data/custom_dataset/Resnet_custom_kv260.xmodel"
+    path = '/home/ubuntu/KV260-Pose-Commands/model_data/custom_dataset/resnet_square.xmodel'
+
     if not os.path.exists(path):
         raise ValueError(f"path to xmodel does not exist, {path}")
     overlay.load_model(path)

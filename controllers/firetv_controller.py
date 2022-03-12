@@ -28,7 +28,7 @@ KEYCODES = {
 }
 
 
-class fireTVController():
+class FireTVController():
     def __init__(self):
         if not os.path.isfile('adbkey'):
             print("Generating ADB Keys")
