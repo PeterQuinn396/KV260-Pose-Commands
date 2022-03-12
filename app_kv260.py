@@ -7,8 +7,15 @@ from typing import List
 
 from pynq_dpu import DpuOverlay
 
-CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']
 
+
+import mediapipe as mp
+mp_drawing = mp.solutions.drawing_utils
+mp_hands = mp.solutions.hands
+
+hand_detector =  mp_hands.Hands(min_detection_confidence=.5, min_tracking_confidence=.5, max_num_hands=1)
+
+CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']
 
 def open_video(cam_id=0):
     cap = cv2.VideoCapture(cam_id + cv2.CAP_V4L2)
@@ -53,8 +60,18 @@ def preprocess_frame(frame):
     x = np.moveaxis(x, -1, 0)
     x = x[..., mid - ext:mid + ext]
     x = np.reshape(x, (1, 3, 1080, 1080))
+
+    #x =x
     return x.astype(np.float32)
 
+def get_3d_points(results):
+
+    arr = []
+    for pt in results.multi_hand_world_landmarks[0].landmark:
+        coords = [pt.x, pt.y, pt.z]
+        arr.append(coords)
+    arr = np.array(arr).reshape(3,1,21).astype(np.float32).flatten().squeeze()
+    return arr
 
 def softmax(x):
     return np.exp(x) / sum(np.exp(x))
@@ -93,7 +110,7 @@ def display_image(image, gesture, probability, time) -> bool:
 def main():
     overlay = DpuOverlay("dpu.bit")
 
-    path = '/home/ubuntu/KV260-Pose-Commands/model_data/custom_dataset/resnet_square.xmodel'
+    path = '/home/ubuntu/KV260-Pose-Commands/model_data/custom_dataset/simple_mlp_kv260.xmodel'
 
     if not os.path.exists(path):
         raise ValueError(f"path to xmodel does not exist, {path}")
@@ -121,16 +138,31 @@ def main():
         gesture = ""
         prob = ""
 
-        if frame is not None:
-            x = preprocess_frame(frame)
-            input_data[0] = x
-            job_id = dpu.execute_async(input_data, output_data)
-            dpu.wait(job_id)
-            y = output_data[0]
-            gesture, prob = process_output(y, detection_threshold=.05)
+        if frame is None:
+            continue
+
+        im = frame[400:800,500:1500,:]
+
+        results = hand_detector.process(im) # trick the tracker
+
+        if results is None:
+            continue
+
+        x = get_3d_points(results)
+
+        for hand_landmarks in results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(im, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+        input_data[0] = x
+        job_id = dpu.execute_async(input_data, output_data)
+        dpu.wait(job_id)
+        y = output_data[0]
+        gesture, prob = process_output(y, detection_threshold=.05)
 
         end_time = time.time()
         dt = end_time - start_time
+
+
         alive = display_image(frame, gesture, prob, dt)
         print(f"{gesture}, {prob}, {dt}")
         send_message()
