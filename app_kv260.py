@@ -7,15 +7,15 @@ from typing import List
 
 from pynq_dpu import DpuOverlay
 
-
-
 import mediapipe as mp
+
 mp_drawing = mp.solutions.drawing_utils
 mp_hands = mp.solutions.hands
 
-hand_detector =  mp_hands.Hands(min_detection_confidence=.5, min_tracking_confidence=.5, max_num_hands=1)
+hand_detector = mp_hands.Hands(min_detection_confidence=.5, min_tracking_confidence=.5, max_num_hands=1)
 
 CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']
+
 
 def open_video(cam_id=0):
     cap = cv2.VideoCapture(cam_id + cv2.CAP_V4L2)
@@ -61,17 +61,18 @@ def preprocess_frame(frame):
     x = x[..., mid - ext:mid + ext]
     x = np.reshape(x, (1, 3, 1080, 1080))
 
-    #x =x
+    # x =x
     return x.astype(np.float32)
 
-def get_3d_points(results):
 
+def get_3d_points(results):
     arr = []
     for pt in results.multi_hand_world_landmarks[0].landmark:
         coords = [pt.x, pt.y, pt.z]
         arr.append(coords)
-    arr = np.array(arr).reshape(3,1,21).astype(np.float32).flatten().squeeze()
+    arr = np.array(arr).reshape(3, 1, 21).astype(np.float32).flatten().squeeze()
     return arr
+
 
 def softmax(x):
     return np.exp(x) / sum(np.exp(x))
@@ -135,15 +136,12 @@ def main():
 
         frame = get_frame(cam)
 
-        gesture = ""
-        prob = ""
-
         if frame is None:
             continue
 
-        im = frame[400:800,500:1500,:]
+        im = frame[400:800, 500:1500, :]
 
-        results = hand_detector.process(im) # trick the tracker
+        results = hand_detector.process(im)  # trick the tracker
 
         if results is None:
             continue
@@ -161,7 +159,6 @@ def main():
 
         end_time = time.time()
         dt = end_time - start_time
-
 
         alive = display_image(frame, gesture, prob, dt)
         print(f"{gesture}, {prob}, {dt}")
