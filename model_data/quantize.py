@@ -1,23 +1,31 @@
-import sys
+"""
+This is a script to quantize a pytorch float model to a xmodel, ready for compilation.
+To be run inside the Vitis AI docker, after running `conda activate vitis-ai-pytorch`
+
+This script is based on the example:
+https://github.com/Xilinx/Vitis-AI-Tutorials/blob/master/Design_Tutorials/09-mnist_pyt/files/quantize.py
+"""
 
 import torch
-from common import device
-
-import argparse
 
 from pytorch_nndct.apis import torch_quantizer, dump_xmodel
 
 from common import test_vitis_compatible
-from custom_dataset.model import (get_model, get_dataloader, CATEGORIES, GestureDatasetFromFile, get_dataloader_files,
-    get_pickle_dataset, get_model_pose)
 
 from custom_dataset.model_simple import get_model, get_dataset
-"""
-To be run inside the Vitis AI docker, after running `conda activate vitis-ai-pytorch`
-"""
+from common import device
 
 
 def load_model():
+    """A function that returns a pytorch model.
+
+    This function fetches the definition of the model using get_model, and then loads
+    in the pretrained weights.
+
+    Returns:
+        pretrained model to quantize
+
+    """
     print("Loading model...")
     m = get_model()
     m.load_state_dict(torch.load("custom_dataset/simple_mlp.pt", map_location=device))
@@ -29,33 +37,23 @@ def load_model():
     return m
 
 
-def test(model, dataloader):
-    model.eval()
-    acc = 0
-    with torch.no_grad():
-        for x, y_ref in dataloader:
-            print("to device")
-            x.to(device)
-            y_ref.to(device)
-            print('running model')
-            y_pred = model(x)
-            print('getting ans')
-            _, predicted = y_pred.max(dim=1)
-            correct = (predicted == y_ref)
-            print('accumulate')
-            acc += 1.0 * correct.sum().item() / y_ref.shape[0]
-            print('loop')
-    acc /= len(dataloader)
-    return acc
-
-
 def test_dataset(model, dataset):
+    """An example function for testing the accuracy of the quantized model.
+
+    The quantization process can degrade the performance for some model significantly.
+
+    Args:
+        model: the quantized model
+        dataset: a pytorch dataset to iterate through
+
+    Returns:
+
+    """
     model.eval()
     acc = 0
-
     with torch.no_grad():
         for i in range(len(dataset)):
-            print(f'{i+1}/{len(dataset)}')
+            print(f'{i + 1}/{len(dataset)}')
             x, y_ref = dataset[i]
             x.to(device)
             y_ref.to(device)
@@ -71,11 +69,18 @@ def test_dataset(model, dataset):
 
 
 def quantize(model, quant_mode):
-    if quant_mode == 'test':
-        batch_size = 1
-    else:
-        batch_size = 1
+    """Main function for quantizing the model
 
+    Args:
+        model: Pytorch float model.
+        quant_mode: either 'test' or 'calib'
+            Required setting for the torch_quantizer function
+
+    Returns:
+
+    """
+
+    batch_size = 1
     rand_size = [batch_size, 63]
     rand_in = torch.randn(rand_size)
     print(f"Rand in size: {rand_in.size()}")
@@ -83,15 +88,11 @@ def quantize(model, quant_mode):
         print('model failed jit test')
         exit()
 
-    # force to merge BN with CONV for better quantization accuracy
-    # magic value that gets parsed by vitis?
-    # optimize = 1
     model.eval()
+
     quantizer = torch_quantizer(quant_mode, model, (rand_in), device=device)  # qat_proc=True
 
     quant_model = quantizer.quant_model
-
-    # make custom test fn, that takes a torch data loader and a loss_fn
 
     if quant_mode == 'calib':
         print("Getting data loader...")
@@ -103,9 +104,15 @@ def quantize(model, quant_mode):
         print("Got loader")
         print("Running test set...")
 
-        #acc1_gen = test_dataset(quant_model, dataset)
+        # Test the data
+        # acc1_gen = test_dataset(quant_model, dataset)
+
+        # If you want to skip testing the model, you can just forward a batch of random data
+        # It does seem like a forward pass must be done in order to properly set some internal
+        # state of the quant model before it can be exported.
         rand_size = [4, 63]
         rand_in = torch.randn(rand_size)
+
         acc1_gen = 0
 
         quant_model(rand_in)
@@ -115,28 +122,17 @@ def quantize(model, quant_mode):
         quantizer.export_quant_config()
 
     if quant_mode == 'test':
-        y = quant_model(rand_in)
+        y = quant_model(rand_in) # You must forward the model at least once before exporting it.
 
         print("Running export_xmodel...")
         quantizer.export_xmodel(deploy_check=True)
 
 
-def get_parser():
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument('--quant_mode', choices=['test', 'calib'],
-                        help='Run calib mode before test mode')
-    # parser.add_argument('--deploy', action='store_true')
-    # parser.add_argument('--subset_length', default=1)
-    return parser
-
-
 def main():
-    parser = get_parser()
-    args = parser.parse_args()
-
     model = load_model()
     model.to(device)
 
+    # Run both the quantize and calib steps back to back to get all everything done at once
     quantize(model, 'calib')
     quantize(model, 'test')
 

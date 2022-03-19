@@ -1,3 +1,5 @@
+"""A small script to test webcam capture with opencv"""
+
 import cv2
 
 

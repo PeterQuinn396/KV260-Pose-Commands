@@ -64,7 +64,7 @@ class FireTVController():
 
 if __name__ == '__main__':
 
-    controller = fireTVController()
+    controller = FireTVController()
     firetv_ip = '192.168.2.138'
     controller.add_device(firetv_ip)
 

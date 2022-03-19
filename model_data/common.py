@@ -1,15 +1,18 @@
-
 import torch
-
+from typing import Tuple
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # enable gpu processing
 
 
-def test_vitis_compatible(model, input_shape = (1,3,224,224)):
-    """
-    Run the torch jit check to make sure the model_data is quantizable
-    by Vitis
-    :param model:
-    :return:
+def test_vitis_compatible(model, input_shape=(1, 3, 224, 224)):
+    """Run the torch jit check to make sure the model_data is quantizable by Vitis
+
+
+    Args:
+        model:
+        input_shape:
+
+    Returns:
+
     """
     model.to(device)
     model.eval()
@@ -22,14 +25,21 @@ def test_vitis_compatible(model, input_shape = (1,3,224,224)):
         print(e)
         print("Model fails test")
         return False
-   
-
-def train():
-    pass
 
 
-def test(model: torch.nn.Module, test_loader: torch.utils.data.DataLoader, loss_fn, max_samples=100):
+def test(model: torch.nn.Module, test_loader: torch.utils.data.DataLoader, loss_fn, max_samples=100) -> Tuple[
+    float, float, float]:
+    """A function for testing a torch model.
 
+    Args:
+        model:
+        test_loader:
+        loss_fn:
+        max_samples:
+
+    Returns:
+
+    """
     model.eval()
 
     running_corrects = 0

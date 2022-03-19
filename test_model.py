@@ -3,22 +3,14 @@ import numpy as np
 import os
 import time
 from pynq_dpu import DpuOverlay
-import cv2
-from app_kv260 import process_output, preprocess_frame
+
+from app_kv260 import process_output
 
 if __name__ == '__main__':
-    im_path = 'right_25.jpg'
-    im = Image.open(im_path)
-    arr = np.array(im)
-    #arr = np.moveaxis(arr, -1, 0)  # move channels to front for pytorch
-    #
-    im_small = cv2.resize(cv2.cvtColor(arr, cv2.COLOR_RGB2BGR), (arr.shape[1] // 4, arr.shape[0] // 4))
-    cv2.imshow("Image", im_small)
-    cv2.waitKey(0)
 
     # set up model
     overlay = DpuOverlay("dpu.bit")
-    path = '/home/ubuntu/KV260-Pose-Commands/model_data/custom_dataset/resnet_square.xmodel'
+    path = '/home/ubuntu/KV260-Pose-Commands/model_data/custom_dataset/simple_mlp_kv260.xmodel'
 
     if not os.path.exists(path):
         raise ValueError(f"path to xmodel does not exist, {path}")
@@ -36,7 +28,7 @@ if __name__ == '__main__':
     input_data = [np.empty(shapeIn, dtype=np.float32, order="C")]
 
     start_time = time.time()
-    x = preprocess_frame(arr)
+    x = np.random.random(1, 63)
 
     input_data[0] = x
     job_id = dpu.execute_async(input_data, output_data)

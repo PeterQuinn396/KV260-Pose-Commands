@@ -1,12 +1,11 @@
 import os.path
-
+import argparse
 import numpy as np
 import time
 import cv2
-from typing import List
+from controllers.firetv_controller import FireTVController
 
 from pynq_dpu import DpuOverlay
-
 import mediapipe as mp
 
 mp_drawing = mp.solutions.drawing_utils
@@ -15,8 +14,6 @@ mp_hands = mp.solutions.hands
 hand_detector = mp_hands.Hands(min_detection_confidence=.5, min_tracking_confidence=.5, max_num_hands=1)
 
 CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']
-
-from controllers.firetv_controller import FireTVController
 
 
 def open_video(cam_id=0):
@@ -43,7 +40,7 @@ def open_video(cam_id=0):
     print(f"Cam resolution: {width}, {height}")
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     buf_size = cap.get(cv2.CAP_PROP_BUFFERSIZE)
-    print(f"Buffer size: {buf_size}") # make sure there is no build up of frames from slow processing
+    print(f"Buffer size: {buf_size}")  # make sure there is no build up of frames from slow processing
     return cap
 
 
@@ -69,7 +66,19 @@ def preprocess_frame(frame):
     return x.astype(np.float32)
 
 
-def get_3d_points(results):
+def get_3d_points(results) -> np.ndarray:
+    """Process results from mediapipe to a flat vector, formatted for the ML model input
+
+    If you see soemthing like 'results.multi_hand_world_landmarks[0].landmark key/index/attribute does not exist`,
+    you might be using an older version of mediapipe which doesn't have multi_hand_world_landmarks
+
+    Args:
+        results: results from
+
+    Returns:
+        [1,63] array
+
+    """
     arr = []
     for pt in results.multi_hand_world_landmarks[0].landmark:
         coords = [pt.x, pt.y, pt.z]
@@ -83,6 +92,16 @@ def softmax(x):
 
 
 def process_output(outputTensor, detection_threshold=.05):
+    """Process the output tensor to determine which gesture it identified.
+
+    Args:
+        outputTensor:
+        detection_threshold: minimum level of confidence for model to detect a gesture.
+
+    Returns: string name of gesture, if detection threshold was met for at least one element,
+        None otherwise
+
+    """
     out = outputTensor.squeeze()
     probs = softmax(out)
     max_prob = np.max(probs)
@@ -93,7 +112,18 @@ def process_output(outputTensor, detection_threshold=.05):
     return gesture, max_prob
 
 
-def send_message(firetv_controller, gesture):
+def send_message(firetv_controller: FireTVController, gesture: str):
+    """Call the send_command function with the appropriate command for the gesture.
+
+    This function maps the gestures to the tv functions we want to control.
+
+    Args:
+        firetv_controller:
+        gesture:
+
+    Returns:
+
+    """
     if gesture == 'up':
         firetv_controller.send_command('up')
     elif gesture == 'down':
@@ -108,8 +138,18 @@ def send_message(firetv_controller, gesture):
         firetv_controller.send_command('back')
 
 
-def display_image(image, gesture, probability, time) -> bool:
-    # input is rgb
+def display_image(image: np.ndarray, gesture: str, probability: float, time: float) -> bool:
+    """Write some text on the image and display it using opencv
+
+    Args:
+        image: rgb image
+        gesture: name of gesture, to write on display
+        probability:  probability of gesture, to write on display
+        time: Time between frames. Used to draw a frame rate
+
+    Returns:
+
+    """
     im = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     im = cv2.resize(im, (im.shape[1] // 4, im.shape[0] // 4))
 
@@ -123,7 +163,7 @@ def display_image(image, gesture, probability, time) -> bool:
     return alive
 
 
-def main():
+def main(display=False):
     # Set up the DPU by loading our model and allocating memory for the input and output
     overlay = DpuOverlay("dpu.bit")
 
@@ -147,7 +187,7 @@ def main():
     firetv_controller = FireTVController()  # Insert your own controller code here
     firetv_controller.add_device("192.168.2.138")  # Change to match your device IP address
 
-    # open up the webcam
+    # Open up the webcam
     alive = True
     cam = open_video()
 
@@ -159,7 +199,7 @@ def main():
         if frame is None:
             continue
 
-        im = frame[400:800, 500:1500, :]
+        im = frame[400:800, 500:1500, :]  # clip frame to ROI specifically for my hardware setup
 
         results = hand_detector.process(im)  # trick the tracker
 
@@ -177,14 +217,20 @@ def main():
         end_time = time.time()
         dt = end_time - start_time
 
-        # for hand_landmarks in results.multi_hand_landmarks:
-        #     mp_drawing.draw_landmarks(im, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-        # alive = display_image(im, gesture, prob, dt)
+        # Draw hand landmarks and display image using opencv
+
+        if display:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_drawing.draw_landmarks(im, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            alive = display_image(im, gesture, prob, dt)
 
         print(f"{gesture}, Prob: {prob}, Time: {dt}")
         send_message(firetv_controller, gesture)
-        #time.sleep(.5)
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--display', '-d', action='store_true',
+                        help='Displays the webcam view with some debug information printed on it.')
+    args = parser.parse_args()
+    main(display=args.display)
