@@ -4,6 +4,7 @@ import numpy as np
 import time
 import cv2
 from controllers.firetv_controller import FireTVController
+from typing import Tuple
 
 from pynq_dpu import DpuOverlay
 import mediapipe as mp
@@ -16,7 +17,18 @@ hand_detector = mp_hands.Hands(min_detection_confidence=.5, min_tracking_confide
 CATEGORIES = ['up', 'down', 'left', 'right', 'fist', 'palm']
 
 
-def open_video(cam_id=0):
+def open_video(cam_id=0) -> cv2.VideoCapture:
+    """Open the camera and return it.
+
+    Args:
+        cam_id: id of the camera to open.
+
+        This function is set up to use the first camera on the system. It also sets the capture resolution to 1080x1920.
+        Note that these settings are not guaranteed to work with all cameras.
+
+    Returns:
+        cv2.VideoCapture object
+    """
     cap = cv2.VideoCapture(cam_id + cv2.CAP_V4L2)
     if not cap.isOpened():
         print("Error: cannot open camera")
@@ -44,7 +56,15 @@ def open_video(cam_id=0):
     return cap
 
 
-def get_frame(cam):
+def get_frame(cam) -> np.ndarray:
+    """Get a frame from the camera and return it.
+
+    Args:
+        cam: opencv camera object to get the frame from.
+
+    Returns:
+        RGB np.ndarray of the frame.
+    """
     success, image = cam.read()
     if not success:
         print("Got empty camera frame")
@@ -52,18 +72,6 @@ def get_frame(cam):
     # the BGR image to RGB.
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     return image
-
-
-def preprocess_frame(frame):
-    mid = 1920 // 2
-    ext = 1080 // 2
-    x = frame / 255.
-    x = np.moveaxis(x, -1, 0)
-    x = x[..., mid - ext:mid + ext]
-    x = np.reshape(x, (1, 3, 1080, 1080))
-
-    # x =x
-    return x.astype(np.float32)
 
 
 def get_3d_points(results) -> np.ndarray:
@@ -91,15 +99,17 @@ def softmax(x):
     return np.exp(x) / sum(np.exp(x))
 
 
-def process_output(outputTensor, detection_threshold=.05):
+def process_output(outputTensor: np.ndarray, detection_threshold: float = .05) -> Tuple[str, float]:
     """Process the output tensor to determine which gesture it identified.
 
     Args:
-        outputTensor:
+        outputTensor: tensor from the ML model.
         detection_threshold: minimum level of confidence for model to detect a gesture.
 
-    Returns: string name of gesture, if detection threshold was met for at least one element,
+    Returns:
+        gesture: string name of gesture, if detection threshold was met for at least one element,
         None otherwise
+        max_prob: the probability of the gesture being the one identified.
 
     """
     out = outputTensor.squeeze()
@@ -120,8 +130,6 @@ def send_message(firetv_controller: FireTVController, gesture: str):
     Args:
         firetv_controller:
         gesture:
-
-    Returns:
 
     """
     if gesture == 'up':
@@ -201,7 +209,7 @@ def main(display=False):
 
         im = frame[400:800, 500:1500, :]  # clip frame to ROI specifically for my hardware setup
 
-        results = hand_detector.process(im)  # trick the tracker
+        results = hand_detector.process(im)  # detect hands in image
 
         if results.multi_hand_landmarks is None:
             continue
@@ -218,7 +226,6 @@ def main(display=False):
         dt = end_time - start_time
 
         # Draw hand landmarks and display image using opencv
-
         if display:
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(im, hand_landmarks, mp_hands.HAND_CONNECTIONS)

@@ -1,3 +1,4 @@
+"""Test that the model can be loaded and forwarded on the KV260."""
 from PIL import Image
 import numpy as np
 import os
