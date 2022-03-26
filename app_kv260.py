@@ -159,7 +159,7 @@ def display_image(image: np.ndarray, gesture: str, probability: float, time: flo
 
     """
     im = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    im = cv2.resize(im, (im.shape[1] // 4, im.shape[0] // 4))
+    im = cv2.resize(im, (im.shape[1], im.shape[0]))
 
     if time > 0:  # avoid a crash from a bad time
         cv2.putText(im, f"FPS: {1 / time:.2f}", (5, 15), cv2.FONT_HERSHEY_SIMPLEX, .5, (0, 255, 0), 1)
@@ -212,6 +212,10 @@ def main(display=False):
         results = hand_detector.process(im)  # detect hands in image
 
         if results.multi_hand_landmarks is None:
+            if display: # display the image even if no hands are detected
+                end_time = time.time()
+                dt = end_time - start_time
+                alive = display_image(im, "No Hand", 0, dt)
             continue
 
         x = get_3d_points(results)
