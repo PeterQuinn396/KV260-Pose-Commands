@@ -2,7 +2,7 @@
 
 This is the code associated with an article I wrote over on hackster.io.
 
-The app runs at about 3 FPS, which is sufficient for interacting the menu UI in realtime. I think most of the run time is from openCV grabbing frames and mediapipe preprocessing the data for the model that is running on the KV260 DPU.
+The app runs at about 3 FPS, which is sufficient for interacting with the menu UI in realtime. I think most of the run time is from openCV grabbing frames and mediapipe preprocessing the data for the model that is running on the KV260 DPU.
 
 ## Main highlights
 
