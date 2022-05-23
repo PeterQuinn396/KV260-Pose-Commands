@@ -1,6 +1,7 @@
 # KV260-Pose-Commands
 
-This is the code associated with an article I wrote over on hackster.io.
+This is the code associated with an article I wrote over on hackster.io. This was done as part of the AMD-Xilinx Adpative Computing Challenge 2021. This prject won 3rd prize.
+- [Gesture Control of Smart Home Devices with Xilinx KV260](https://www.hackster.io/peter-quinn/gesture-control-of-smart-home-devices-with-xilinx-kv260-e2586d)
 
 The app runs at about 3 FPS, which is sufficient for interacting with the menu UI in realtime. I think most of the run time is from openCV grabbing frames and mediapipe preprocessing the data for the model that is running on the KV260 DPU.
 
